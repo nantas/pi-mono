@@ -3,87 +3,16 @@ import { WebClient } from "@slack/web-api";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "fs";
 import { basename, join } from "path";
 import * as log from "./log.js";
-import type { Attachment, ChannelStore } from "./store.js";
+import type { ChannelStore } from "./store.js";
+import type { Attachment, BotAdapter, BotChannelInfo, BotContext, BotEvent, BotHandler, BotUserInfo } from "./types.js";
+
+export type { BotEvent as SlackEvent, BotUserInfo as SlackUser, BotChannelInfo as SlackChannel };
+export type { BotChannelInfo as ChannelInfo, BotUserInfo as UserInfo };
+export type { BotContext as SlackContext, BotHandler as MomHandler };
 
 // ============================================================================
 // Types
 // ============================================================================
-
-export interface SlackEvent {
-	type: "mention" | "dm";
-	channel: string;
-	ts: string;
-	user: string;
-	text: string;
-	files?: Array<{ name?: string; url_private_download?: string; url_private?: string }>;
-	/** Processed attachments with local paths (populated after logUserMessage) */
-	attachments?: Attachment[];
-}
-
-export interface SlackUser {
-	id: string;
-	userName: string;
-	displayName: string;
-}
-
-export interface SlackChannel {
-	id: string;
-	name: string;
-}
-
-// Types used by agent.ts
-export interface ChannelInfo {
-	id: string;
-	name: string;
-}
-
-export interface UserInfo {
-	id: string;
-	userName: string;
-	displayName: string;
-}
-
-export interface SlackContext {
-	message: {
-		text: string;
-		rawText: string;
-		user: string;
-		userName?: string;
-		channel: string;
-		ts: string;
-		attachments: Array<{ local: string }>;
-	};
-	channelName?: string;
-	channels: ChannelInfo[];
-	users: UserInfo[];
-	respond: (text: string, shouldLog?: boolean) => Promise<void>;
-	replaceMessage: (text: string) => Promise<void>;
-	respondInThread: (text: string) => Promise<void>;
-	setTyping: (isTyping: boolean) => Promise<void>;
-	uploadFile: (filePath: string, title?: string) => Promise<void>;
-	setWorking: (working: boolean) => Promise<void>;
-	deleteMessage: () => Promise<void>;
-}
-
-export interface MomHandler {
-	/**
-	 * Check if channel is currently running (SYNC)
-	 */
-	isRunning(channelId: string): boolean;
-
-	/**
-	 * Handle an event that triggers mom (ASYNC)
-	 * Called only when isRunning() returned false for user messages.
-	 * Events always queue and pass isEvent=true.
-	 */
-	handleEvent(event: SlackEvent, slack: SlackBot, isEvent?: boolean): Promise<void>;
-
-	/**
-	 * Handle stop command (ASYNC)
-	 * Called when user says "stop" while mom is running
-	 */
-	handleStop(channelId: string, slack: SlackBot): Promise<void>;
-}
 
 // ============================================================================
 // Per-channel queue for sequential processing
@@ -122,21 +51,21 @@ class ChannelQueue {
 // SlackBot
 // ============================================================================
 
-export class SlackBot {
+export class SlackBot implements BotAdapter {
 	private socketClient: SocketModeClient;
 	private webClient: WebClient;
-	private handler: MomHandler;
+	private handler: BotHandler;
 	private workingDir: string;
 	private store: ChannelStore;
 	private botUserId: string | null = null;
 	private startupTs: string | null = null; // Messages older than this are just logged, not processed
 
-	private users = new Map<string, SlackUser>();
-	private channels = new Map<string, SlackChannel>();
+	private users = new Map<string, BotUserInfo>();
+	private channels = new Map<string, BotChannelInfo>();
 	private queues = new Map<string, ChannelQueue>();
 
 	constructor(
-		handler: MomHandler,
+		handler: BotHandler,
 		config: { appToken: string; botToken: string; workingDir: string; store: ChannelStore },
 	) {
 		this.handler = handler;
@@ -168,19 +97,19 @@ export class SlackBot {
 		log.logConnected();
 	}
 
-	getUser(userId: string): SlackUser | undefined {
+	getUser(userId: string): BotUserInfo | undefined {
 		return this.users.get(userId);
 	}
 
-	getChannel(channelId: string): SlackChannel | undefined {
+	getChannel(channelId: string): BotChannelInfo | undefined {
 		return this.channels.get(channelId);
 	}
 
-	getAllUsers(): SlackUser[] {
+	getAllUsers(): BotUserInfo[] {
 		return Array.from(this.users.values());
 	}
 
-	getAllChannels(): SlackChannel[] {
+	getAllChannels(): BotChannelInfo[] {
 		return Array.from(this.channels.values());
 	}
 
@@ -245,7 +174,7 @@ export class SlackBot {
 	 * Enqueue an event for processing. Always queues (no "already working" rejection).
 	 * Returns true if enqueued, false if queue is full (max 5).
 	 */
-	enqueueEvent(event: SlackEvent): boolean {
+	enqueueEvent(event: BotEvent): boolean {
 		const queue = this.getQueue(event.channel);
 		if (queue.size() >= 5) {
 			log.logWarning(`Event queue full for ${event.channel}, discarding: ${event.text.substring(0, 50)}`);
@@ -286,13 +215,16 @@ export class SlackBot {
 				return;
 			}
 
-			const slackEvent: SlackEvent = {
+			const slackEvent: BotEvent = {
 				type: "mention",
 				channel: e.channel,
 				ts: e.ts,
 				user: e.user,
 				text: e.text.replace(/<@[A-Z0-9]+>/gi, "").trim(),
-				files: e.files,
+				files: e.files?.map((file) => ({
+					name: file.name,
+					url: file.url_private_download || file.url_private,
+				})),
 			};
 
 			// SYNC: Log to log.jsonl (ALWAYS, even for old messages)
@@ -365,13 +297,16 @@ export class SlackBot {
 				return;
 			}
 
-			const slackEvent: SlackEvent = {
+			const slackEvent: BotEvent = {
 				type: isDM ? "dm" : "mention",
 				channel: e.channel,
 				ts: e.ts,
 				user: e.user,
 				text: (e.text || "").replace(/<@[A-Z0-9]+>/gi, "").trim(),
-				files: e.files,
+				files: e.files?.map((file) => ({
+					name: file.name,
+					url: file.url_private_download || file.url_private,
+				})),
 			};
 
 			// SYNC: Log to log.jsonl (ALL messages - channel chatter and DMs)
@@ -413,10 +348,16 @@ export class SlackBot {
 	 * Log a user message to log.jsonl (SYNC)
 	 * Downloads attachments in background via store
 	 */
-	private logUserMessage(event: SlackEvent): Attachment[] {
+	private logUserMessage(event: BotEvent): Attachment[] {
 		const user = this.users.get(event.user);
 		// Process attachments - queues downloads in background
-		const attachments = event.files ? this.store.processAttachments(event.channel, event.files, event.ts) : [];
+		const attachments = event.files
+			? this.store.processAttachments(
+					event.channel,
+					event.files.map((file) => ({ name: file.name, url_private_download: file.url })),
+					event.ts,
+				)
+			: [];
 		this.logToFile(event.channel, {
 			date: new Date(parseFloat(event.ts) * 1000).toISOString(),
 			ts: event.ts,
@@ -530,7 +471,7 @@ export class SlackBot {
 		const startTime = Date.now();
 
 		// Only backfill channels that already have a log.jsonl (mom has interacted with them before)
-		const channelsToBackfill: Array<[string, SlackChannel]> = [];
+		const channelsToBackfill: Array<[string, BotChannelInfo]> = [];
 		for (const [channelId, channel] of this.channels) {
 			const logPath = join(this.workingDir, channelId, "log.jsonl");
 			if (existsSync(logPath)) {
