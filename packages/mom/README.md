@@ -1,6 +1,6 @@
 # mom (Master Of Mischief)
 
-A Slack bot powered by an LLM that can execute bash commands, read/write files, and interact with your development environment. Mom is **self-managing**. She installs her own tools, programs [CLI tools (aka "skills")](https://mariozechner.at/posts/2025-11-02-what-if-you-dont-need-mcp/) she can use to help with your workflows and tasks, configures credentials, and maintains her workspace autonomously.
+A Slack/Discord bot powered by an LLM that can execute bash commands, read/write files, and interact with your development environment. Mom is **self-managing**. She installs her own tools, programs [CLI tools (aka "skills")](https://mariozechner.at/posts/2025-11-02-what-if-you-dont-need-mcp/) she can use to help with your workflows and tasks, configures credentials, and maintains her workspace autonomously.
 
 ## Features
 
@@ -56,6 +56,23 @@ npm install @mariozechner/pi-mom
 7. Install the app to your workspace. Get the **Bot User OAuth Token**. This is `MOM_SLACK_BOT_TOKEN`
 8. Add mom to any channels where you want her to operate (she'll only see messages in channels she's added to)
 
+### Discord Bot Setup
+
+1. Go to https://discord.com/developers/applications
+2. Create a new application
+3. Go to **Bot** section and click **Add Bot**
+4. Enable **Message Content Intent** under Privileged Gateway Intents
+5. Copy the **Token**. This is `MOM_DISCORD_TOKEN`
+6. Go to **OAuth2** > **URL Generator**
+7. Select **bot** scope
+8. Select permissions:
+   - Read Messages/View Channels
+   - Send Messages
+   - Manage Messages
+   - Read Message History
+   - Attach Files
+9. Use the generated URL to invite the bot to your server
+
 ## Quick Start
 
 ```bash
@@ -79,6 +96,24 @@ mom --sandbox=docker:mom-sandbox ./data
 # Mom will install any tools she needs herself (git, jq, etc.)
 ```
 
+### Quick Start (Discord)
+
+```bash
+# Set environment variables
+export MOM_DISCORD_TOKEN=your-bot-token
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Create Docker sandbox (recommended)
+docker run -d \
+  --name mom-sandbox \
+  -v $(pwd)/data:/workspace \
+  alpine:latest \
+  tail -f /dev/null
+
+# Run mom in Docker mode
+mom --sandbox=docker:mom-sandbox ./data
+```
+
 ## CLI Options
 
 ```bash
@@ -95,6 +130,7 @@ Options:
 |----------|-------------|
 | `MOM_SLACK_APP_TOKEN` | Slack app-level token (xapp-...) |
 | `MOM_SLACK_BOT_TOKEN` | Slack bot token (xoxb-...) |
+| `MOM_DISCORD_TOKEN` | Discord bot token |
 | `ANTHROPIC_API_KEY` | (Optional) Anthropic API key |
 
 ## Authentication
