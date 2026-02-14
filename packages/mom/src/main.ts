@@ -2,12 +2,14 @@
 
 import { join, resolve } from "path";
 import { type AgentRunner, getOrCreateRunner } from "./agent.js";
+import { createDiscordBot } from "./discord.js";
 import { downloadChannel } from "./download.js";
 import { createEventsWatcher } from "./events.js";
 import * as log from "./log.js";
 import { parseSandboxArg, type SandboxConfig, validateSandbox } from "./sandbox.js";
-import { type MomHandler, type SlackBot, SlackBot as SlackBotClass, type SlackEvent } from "./slack.js";
+import { type MomHandler, SlackBot as SlackBotClass } from "./slack.js";
 import { ChannelStore } from "./store.js";
+import type { BotAdapter, BotContext, BotEvent } from "./types.js";
 
 // ============================================================================
 // Config
@@ -15,11 +17,24 @@ import { ChannelStore } from "./store.js";
 
 const MOM_SLACK_APP_TOKEN = process.env.MOM_SLACK_APP_TOKEN;
 const MOM_SLACK_BOT_TOKEN = process.env.MOM_SLACK_BOT_TOKEN;
+const MOM_DISCORD_TOKEN = process.env.MOM_DISCORD_TOKEN;
 
 interface ParsedArgs {
 	workingDir?: string;
 	sandbox: SandboxConfig;
 	downloadChannel?: string;
+}
+
+type Platform = "slack" | "discord";
+
+function detectPlatform(): Platform {
+	if (MOM_DISCORD_TOKEN) return "discord";
+	if (MOM_SLACK_APP_TOKEN && MOM_SLACK_BOT_TOKEN) return "slack";
+
+	console.error("No platform credentials found.");
+	console.error("For Slack: Set MOM_SLACK_APP_TOKEN and MOM_SLACK_BOT_TOKEN");
+	console.error("For Discord: Set MOM_DISCORD_TOKEN");
+	process.exit(1);
 }
 
 function parseArgs(): ParsedArgs {
@@ -69,10 +84,16 @@ if (!parsedArgs.workingDir) {
 	process.exit(1);
 }
 
+const platform = detectPlatform();
+
 const { workingDir, sandbox } = { workingDir: parsedArgs.workingDir, sandbox: parsedArgs.sandbox };
 
-if (!MOM_SLACK_APP_TOKEN || !MOM_SLACK_BOT_TOKEN) {
+if (platform === "slack" && (!MOM_SLACK_APP_TOKEN || !MOM_SLACK_BOT_TOKEN)) {
 	console.error("Missing env: MOM_SLACK_APP_TOKEN, MOM_SLACK_BOT_TOKEN");
+	process.exit(1);
+}
+if (platform === "discord" && !MOM_DISCORD_TOKEN) {
+	console.error("Missing env: MOM_DISCORD_TOKEN");
 	process.exit(1);
 }
 
@@ -99,7 +120,7 @@ function getState(channelId: string): ChannelState {
 		state = {
 			running: false,
 			runner: getOrCreateRunner(sandbox, channelId, channelDir),
-			store: new ChannelStore({ workingDir, botToken: MOM_SLACK_BOT_TOKEN! }),
+			store: new ChannelStore({ workingDir, botToken: MOM_SLACK_BOT_TOKEN ?? "" }),
 			stopRequested: false,
 		};
 		channelStates.set(channelId, state);
@@ -108,10 +129,10 @@ function getState(channelId: string): ChannelState {
 }
 
 // ============================================================================
-// Create SlackContext adapter
+// Create BotContext adapter
 // ============================================================================
 
-function createSlackContext(event: SlackEvent, slack: SlackBot, state: ChannelState, isEvent?: boolean) {
+function createBotContext(event: BotEvent, bot: BotAdapter, state: ChannelState, isEvent?: boolean): BotContext {
 	let messageTs: string | null = null;
 	const threadMessageTs: string[] = [];
 	let accumulatedText = "";
@@ -119,7 +140,7 @@ function createSlackContext(event: SlackEvent, slack: SlackBot, state: ChannelSt
 	const workingIndicator = " ...";
 	let updatePromise = Promise.resolve();
 
-	const user = slack.getUser(event.user);
+	const user = bot.getUser(event.user);
 
 	// Extract event filename for status message
 	const eventFilename = isEvent ? event.text.match(/^\[EVENT:([^:]+):/)?.[1] : undefined;
@@ -134,10 +155,9 @@ function createSlackContext(event: SlackEvent, slack: SlackBot, state: ChannelSt
 			ts: event.ts,
 			attachments: (event.attachments || []).map((a) => ({ local: a.local })),
 		},
-		channelName: slack.getChannel(event.channel)?.name,
-		store: state.store,
-		channels: slack.getAllChannels().map((c) => ({ id: c.id, name: c.name })),
-		users: slack.getAllUsers().map((u) => ({ id: u.id, userName: u.userName, displayName: u.displayName })),
+		channelName: bot.getChannel(event.channel)?.name,
+		channels: bot.getAllChannels().map((c) => ({ id: c.id, name: c.name })),
+		users: bot.getAllUsers().map((u) => ({ id: u.id, userName: u.userName, displayName: u.displayName })),
 
 		respond: async (text: string, shouldLog = true) => {
 			updatePromise = updatePromise.then(async () => {
@@ -145,13 +165,13 @@ function createSlackContext(event: SlackEvent, slack: SlackBot, state: ChannelSt
 				const displayText = isWorking ? accumulatedText + workingIndicator : accumulatedText;
 
 				if (messageTs) {
-					await slack.updateMessage(event.channel, messageTs, displayText);
+					await bot.updateMessage(event.channel, messageTs, displayText);
 				} else {
-					messageTs = await slack.postMessage(event.channel, displayText);
+					messageTs = await bot.postMessage(event.channel, displayText);
 				}
 
 				if (shouldLog && messageTs) {
-					slack.logBotResponse(event.channel, text, messageTs);
+					bot.logBotResponse(event.channel, text, messageTs);
 				}
 			});
 			await updatePromise;
@@ -162,9 +182,9 @@ function createSlackContext(event: SlackEvent, slack: SlackBot, state: ChannelSt
 				accumulatedText = text;
 				const displayText = isWorking ? accumulatedText + workingIndicator : accumulatedText;
 				if (messageTs) {
-					await slack.updateMessage(event.channel, messageTs, displayText);
+					await bot.updateMessage(event.channel, messageTs, displayText);
 				} else {
-					messageTs = await slack.postMessage(event.channel, displayText);
+					messageTs = await bot.postMessage(event.channel, displayText);
 				}
 			});
 			await updatePromise;
@@ -173,7 +193,7 @@ function createSlackContext(event: SlackEvent, slack: SlackBot, state: ChannelSt
 		respondInThread: async (text: string) => {
 			updatePromise = updatePromise.then(async () => {
 				if (messageTs) {
-					const ts = await slack.postInThread(event.channel, messageTs, text);
+					const ts = await bot.postInThread(event.channel, messageTs, text);
 					threadMessageTs.push(ts);
 				}
 			});
@@ -185,7 +205,7 @@ function createSlackContext(event: SlackEvent, slack: SlackBot, state: ChannelSt
 				updatePromise = updatePromise.then(async () => {
 					if (!messageTs) {
 						accumulatedText = eventFilename ? `_Starting event: ${eventFilename}_` : "_Thinking_";
-						messageTs = await slack.postMessage(event.channel, accumulatedText + workingIndicator);
+						messageTs = await bot.postMessage(event.channel, accumulatedText + workingIndicator);
 					}
 				});
 				await updatePromise;
@@ -193,7 +213,7 @@ function createSlackContext(event: SlackEvent, slack: SlackBot, state: ChannelSt
 		},
 
 		uploadFile: async (filePath: string, title?: string) => {
-			await slack.uploadFile(event.channel, filePath, title);
+			await bot.uploadFile(event.channel, filePath, title);
 		},
 
 		setWorking: async (working: boolean) => {
@@ -201,7 +221,7 @@ function createSlackContext(event: SlackEvent, slack: SlackBot, state: ChannelSt
 				isWorking = working;
 				if (messageTs) {
 					const displayText = isWorking ? accumulatedText + workingIndicator : accumulatedText;
-					await slack.updateMessage(event.channel, messageTs, displayText);
+					await bot.updateMessage(event.channel, messageTs, displayText);
 				}
 			});
 			await updatePromise;
@@ -212,7 +232,7 @@ function createSlackContext(event: SlackEvent, slack: SlackBot, state: ChannelSt
 				// Delete thread messages first (in reverse order)
 				for (let i = threadMessageTs.length - 1; i >= 0; i--) {
 					try {
-						await slack.deleteMessage(event.channel, threadMessageTs[i]);
+						await bot.deleteMessage(event.channel, threadMessageTs[i]);
 					} catch {
 						// Ignore errors deleting thread messages
 					}
@@ -220,7 +240,7 @@ function createSlackContext(event: SlackEvent, slack: SlackBot, state: ChannelSt
 				threadMessageTs.length = 0;
 				// Then delete main message
 				if (messageTs) {
-					await slack.deleteMessage(event.channel, messageTs);
+					await bot.deleteMessage(event.channel, messageTs);
 					messageTs = null;
 				}
 			});
@@ -239,19 +259,19 @@ const handler: MomHandler = {
 		return state?.running ?? false;
 	},
 
-	async handleStop(channelId: string, slack: SlackBot): Promise<void> {
+	async handleStop(channelId: string, bot: BotAdapter): Promise<void> {
 		const state = channelStates.get(channelId);
 		if (state?.running) {
 			state.stopRequested = true;
 			state.runner.abort();
-			const ts = await slack.postMessage(channelId, "_Stopping..._");
+			const ts = await bot.postMessage(channelId, "_Stopping..._");
 			state.stopMessageTs = ts; // Save for updating later
 		} else {
-			await slack.postMessage(channelId, "_Nothing running_");
+			await bot.postMessage(channelId, "_Nothing running_");
 		}
 	},
 
-	async handleEvent(event: SlackEvent, slack: SlackBot, isEvent?: boolean): Promise<void> {
+	async handleEvent(event: BotEvent, bot: BotAdapter, isEvent?: boolean): Promise<void> {
 		const state = getState(event.channel);
 
 		// Start run
@@ -262,7 +282,7 @@ const handler: MomHandler = {
 
 		try {
 			// Create context adapter
-			const ctx = createSlackContext(event, slack, state, isEvent);
+			const ctx = createBotContext(event, bot, state, isEvent);
 
 			// Run the agent
 			await ctx.setTyping(true);
@@ -272,10 +292,10 @@ const handler: MomHandler = {
 
 			if (result.stopReason === "aborted" && state.stopRequested) {
 				if (state.stopMessageTs) {
-					await slack.updateMessage(event.channel, state.stopMessageTs, "_Stopped_");
+					await bot.updateMessage(event.channel, state.stopMessageTs, "_Stopped_");
 					state.stopMessageTs = undefined;
 				} else {
-					await slack.postMessage(event.channel, "_Stopped_");
+					await bot.postMessage(event.channel, "_Stopped_");
 				}
 			}
 		} catch (err) {
@@ -290,20 +310,30 @@ const handler: MomHandler = {
 // Start
 // ============================================================================
 
-log.logStartup(workingDir, sandbox.type === "host" ? "host" : `docker:${sandbox.container}`);
+log.logStartup(workingDir, `${sandbox.type === "host" ? "host" : `docker:${sandbox.container}`} (${platform})`);
 
 // Shared store for attachment downloads (also used per-channel in getState)
-const sharedStore = new ChannelStore({ workingDir, botToken: MOM_SLACK_BOT_TOKEN! });
+const sharedStore = new ChannelStore({ workingDir, botToken: MOM_SLACK_BOT_TOKEN ?? "" });
 
-const bot = new SlackBotClass(handler, {
-	appToken: MOM_SLACK_APP_TOKEN,
-	botToken: MOM_SLACK_BOT_TOKEN,
-	workingDir,
-	store: sharedStore,
-});
+let bot: BotAdapter;
+
+if (platform === "slack") {
+	bot = new SlackBotClass(handler, {
+		appToken: MOM_SLACK_APP_TOKEN!,
+		botToken: MOM_SLACK_BOT_TOKEN!,
+		workingDir,
+		store: sharedStore,
+	});
+} else {
+	bot = createDiscordBot(handler, {
+		token: MOM_DISCORD_TOKEN!,
+		workingDir,
+		store: sharedStore,
+	});
+}
 
 // Start events watcher
-const eventsWatcher = createEventsWatcher(workingDir, bot);
+const eventsWatcher = createEventsWatcher(workingDir, bot as SlackBotClass);
 eventsWatcher.start();
 
 // Handle shutdown
