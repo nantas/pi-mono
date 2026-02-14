@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- Discord platform support via `MOM_DISCORD_TOKEN` environment variable
+- Platform-agnostic `BotAdapter` interface for multi-platform support
+- `discord.ts` module with `DiscordBot` class
+
+### Changed
+
+- Refactored `SlackBot` to implement shared `BotAdapter` interface
+- Platform types moved to `types.ts` for reuse
+- `SlackContext` renamed to `BotContext`, `SlackEvent` to `BotEvent`
+
 ## [0.52.12] - 2026-02-13
 
 ## [0.52.11] - 2026-02-13
