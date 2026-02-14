@@ -53,6 +53,7 @@ class ChannelQueue {
 export class DiscordBot implements BotAdapter {
 	private client: Client;
 	private handler: BotHandler;
+	private token: string;
 	private workingDir: string;
 	private store: ChannelStore;
 	private botUserId: string | null = null;
@@ -64,6 +65,7 @@ export class DiscordBot implements BotAdapter {
 
 	constructor(handler: BotHandler, config: { token: string; workingDir: string; store: ChannelStore }) {
 		this.handler = handler;
+		this.token = config.token;
 		this.workingDir = config.workingDir;
 		this.store = config.store;
 
@@ -92,7 +94,7 @@ export class DiscordBot implements BotAdapter {
 		});
 
 		this.setupEventHandlers();
-		await this.client.login(process.env.MOM_DISCORD_TOKEN);
+		await this.client.login(this.token);
 
 		// Wait for ready
 		await new Promise<void>((resolve) => {
