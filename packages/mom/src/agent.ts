@@ -19,9 +19,9 @@ import { join } from "path";
 import { MomSettingsManager, syncLogToSessionManager } from "./context.js";
 import * as log from "./log.js";
 import { createExecutor, type SandboxConfig } from "./sandbox.js";
-import type { ChannelInfo, SlackContext, UserInfo } from "./slack.js";
 import type { ChannelStore } from "./store.js";
 import { createMomTools, setUploadFunction } from "./tools/index.js";
+import type { BotChannelInfo, BotContext, BotUserInfo } from "./types.js";
 
 // Hardcoded model for now - TODO: make configurable (issue #63)
 const model = getModel("anthropic", "claude-sonnet-4-5");
@@ -35,7 +35,7 @@ export interface PendingMessage {
 
 export interface AgentRunner {
 	run(
-		ctx: SlackContext,
+		ctx: BotContext,
 		store: ChannelStore,
 		pendingMessages?: PendingMessage[],
 	): Promise<{ stopReason: string; errorMessage?: string }>;
@@ -143,8 +143,8 @@ function buildSystemPrompt(
 	channelId: string,
 	memory: string,
 	sandboxConfig: SandboxConfig,
-	channels: ChannelInfo[],
-	users: UserInfo[],
+	channels: BotChannelInfo[],
+	users: BotUserInfo[],
 	skills: Skill[],
 ): string {
 	const channelPath = `${workspacePath}/${channelId}`;
@@ -478,7 +478,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 
 	// Mutable per-run state - event handler references this
 	const runState = {
-		ctx: null as SlackContext | null,
+		ctx: null as BotContext | null,
 		logCtx: null as { channelId: string; userName?: string; channelName?: string } | null,
 		queue: null as {
 			enqueue(fn: () => Promise<void>, errorContext: string): void;
@@ -640,7 +640,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 
 	return {
 		async run(
-			ctx: SlackContext,
+			ctx: BotContext,
 			_store: ChannelStore,
 			_pendingMessages?: PendingMessage[],
 		): Promise<{ stopReason: string; errorMessage?: string }> {
