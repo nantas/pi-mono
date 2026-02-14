@@ -3,7 +3,7 @@ import { existsSync, type FSWatcher, mkdirSync, readdirSync, statSync, unlinkSyn
 import { readFile } from "fs/promises";
 import { join } from "path";
 import * as log from "./log.js";
-import type { SlackBot, SlackEvent } from "./slack.js";
+import type { BotAdapter, BotEvent } from "./types.js";
 
 // ============================================================================
 // Event Types
@@ -50,13 +50,13 @@ export class EventsWatcher {
 
 	constructor(
 		private eventsDir: string,
-		private slack: SlackBot,
+		private bot: BotAdapter,
 	) {
 		this.startTime = Date.now();
 	}
 
 	/**
-	 * Start watching for events. Call this after SlackBot is ready.
+	 * Start watching for events. Call this after bot is ready.
 	 */
 	start(): void {
 		// Ensure events directory exists
@@ -332,8 +332,8 @@ export class EventsWatcher {
 
 		const message = `[EVENT:${filename}:${event.type}:${scheduleInfo}] ${event.text}`;
 
-		// Create synthetic SlackEvent
-		const syntheticEvent: SlackEvent = {
+		// Create synthetic event
+		const syntheticEvent: BotEvent = {
 			type: "mention",
 			channel: event.channelId,
 			user: "EVENT",
@@ -342,7 +342,7 @@ export class EventsWatcher {
 		};
 
 		// Enqueue for processing
-		const enqueued = this.slack.enqueueEvent(syntheticEvent);
+		const enqueued = this.bot.enqueueEvent(syntheticEvent);
 
 		if (enqueued && deleteAfter) {
 			// Delete file after successful enqueue (immediate and one-shot)
@@ -377,7 +377,7 @@ export class EventsWatcher {
 /**
  * Create and start an events watcher.
  */
-export function createEventsWatcher(workspaceDir: string, slack: SlackBot): EventsWatcher {
+export function createEventsWatcher(workspaceDir: string, bot: BotAdapter): EventsWatcher {
 	const eventsDir = join(workspaceDir, "events");
-	return new EventsWatcher(eventsDir, slack);
+	return new EventsWatcher(eventsDir, bot);
 }
