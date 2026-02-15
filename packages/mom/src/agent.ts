@@ -24,7 +24,7 @@ import { createMomTools, setUploadFunction } from "./tools/index.js";
 import type { BotChannelInfo, BotContext, BotUserInfo } from "./types.js";
 
 // Hardcoded model for now - TODO: make configurable (issue #63)
-const model = getModel("anthropic", "claude-sonnet-4-5");
+const model = getModel("minimax-cn", "MiniMax-M2.5");
 
 export interface PendingMessage {
 	userName: string;
@@ -42,12 +42,12 @@ export interface AgentRunner {
 	abort(): void;
 }
 
-async function getAnthropicApiKey(authStorage: AuthStorage): Promise<string> {
-	const key = await authStorage.getApiKey("anthropic");
+async function getApiKey(authStorage: AuthStorage, provider: string): Promise<string> {
+	const key = await authStorage.getApiKey(provider);
 	if (!key) {
 		throw new Error(
-			"No API key found for anthropic.\n\n" +
-				"Set an API key environment variable, or use /login with Anthropic and link to auth.json from " +
+			`No API key found for ${provider}.\n\n` +
+				`Set an API key environment variable, or use /login and link to auth.json from ` +
 				join(homedir(), ".pi", "mom", "auth.json"),
 		);
 	}
@@ -440,7 +440,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 			tools,
 		},
 		convertToLlm,
-		getApiKey: async () => getAnthropicApiKey(authStorage),
+		getApiKey: async () => getApiKey(authStorage, model.provider),
 	});
 
 	// Load existing messages
@@ -589,16 +589,10 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 
 				const text = textParts.join("\n");
 
-				for (const thinking of thinkingParts) {
-					log.logThinking(logCtx, thinking);
-					queue.enqueueMessage(`_${thinking}_`, "main", "thinking main");
-					queue.enqueueMessage(`_${thinking}_`, "thread", "thinking thread", false);
-				}
-
+				// Only send the main response, skip thinking and thread messages
 				if (text.trim()) {
 					log.logResponse(logCtx, text);
 					queue.enqueueMessage(text, "main", "response main");
-					queue.enqueueMessage(text, "thread", "response thread", false);
 				}
 			}
 		} else if (event.type === "auto_compaction_start") {
@@ -826,7 +820,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 				}
 			}
 
-			// Log usage summary with context info
+			// Log usage summary (don't send to thread)
 			if (runState.totalUsage.cost.total > 0) {
 				// Get last non-aborted assistant message for context calculation
 				const messages = session.messages;
@@ -843,8 +837,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 					: 0;
 				const contextWindow = model.contextWindow || 200000;
 
-				const summary = log.logUsageSummary(runState.logCtx!, runState.totalUsage, contextTokens, contextWindow);
-				runState.queue.enqueue(() => ctx.respondInThread(summary), "usage summary");
+				log.logUsageSummary(runState.logCtx!, runState.totalUsage, contextTokens, contextWindow);
 				await queueChain;
 			}
 
