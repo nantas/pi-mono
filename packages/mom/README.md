@@ -19,6 +19,7 @@ A Slack/Discord bot powered by an LLM that can execute bash commands, read/write
 - [Events System](docs/events.md) - Schedule reminders and periodic tasks
 - [Sandbox Guide](docs/sandbox.md) - Docker vs host mode security
 - [Slack Bot Setup](docs/slack-bot-minimal-guide.md) - Minimal Slack integration guide
+- [Discord Environments Runbook](../../docs/runbooks/mom-discord-environments.md) - Canonical dev/prod environment layout
 
 ## Installation
 
