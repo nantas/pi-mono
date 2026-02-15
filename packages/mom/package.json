@@ -14,7 +14,8 @@
 	],
 	"scripts": {
 		"clean": "rm -rf dist",
-		"build": "tsgo -p tsconfig.build.json && chmod +x dist/main.js",
+		"build:workspace-deps": "node scripts/build-local-workspace-deps.mjs",
+		"build": "npm run build:workspace-deps && tsgo -p tsconfig.build.json && chmod +x dist/main.js",
 		"dev": "tsgo -p tsconfig.build.json --watch --preserveWatchOutput",
 		"prepublishOnly": "npm run clean && npm run build"
 	},

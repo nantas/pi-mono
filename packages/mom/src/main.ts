@@ -132,7 +132,7 @@ function getState(channelId: string): ChannelState {
 // Create BotContext adapter
 // ============================================================================
 
-function createBotContext(event: BotEvent, bot: BotAdapter, state: ChannelState, isEvent?: boolean): BotContext {
+function createBotContext(event: BotEvent, bot: BotAdapter, isEvent?: boolean): BotContext {
 	let messageTs: string | null = null;
 	const threadMessageTs: string[] = [];
 	let accumulatedText = "";
@@ -282,7 +282,7 @@ const handler: MomHandler = {
 
 		try {
 			// Create context adapter
-			const ctx = createBotContext(event, bot, state, isEvent);
+			const ctx = createBotContext(event, bot, isEvent);
 
 			// Run the agent
 			await ctx.setTyping(true);
