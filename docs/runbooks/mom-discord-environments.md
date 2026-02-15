@@ -87,3 +87,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 mom --sandbox=docker:mom-sandbox-discord-prod ~/.pi/mom/discord-prod
 ```
+
+## Related Runbooks
+
+- [Rollback Runbook](./mom-discord-rollback.md) - Emergency rollback procedure
