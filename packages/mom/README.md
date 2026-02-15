@@ -76,6 +76,8 @@ npm install @mariozechner/pi-mom
 
 ## Quick Start
 
+> **For Discord**: See the [Discord Environments Runbook](../../docs/runbooks/mom-discord-environments.md) for the canonical dev/prod setup.
+
 ```bash
 # Set environment variables
 export MOM_SLACK_APP_TOKEN=xapp-...
@@ -98,6 +100,8 @@ mom --sandbox=docker:mom-sandbox ./data
 ```
 
 ### Quick Start (Discord)
+
+> **Important**: See the [Discord Environments Runbook](../../docs/runbooks/mom-discord-environments.md) for the canonical dev/prod setup.
 
 ```bash
 # Set environment variables
