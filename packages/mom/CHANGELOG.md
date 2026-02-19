@@ -18,6 +18,8 @@
 
 - Build now auto-builds missing local workspace dependencies before compiling `pi-mom`, preventing `TS2307` module resolution failures in monorepo installs
 
+## [0.53.0] - 2026-02-17
+
 ## [0.52.12] - 2026-02-13
 
 ## [0.52.11] - 2026-02-13

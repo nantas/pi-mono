@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-02-17
+
+### Breaking Changes
+
+- `SettingsManager` persistence semantics changed for SDK consumers. Setters now update in-memory state immediately and queue disk writes. Code that requires durable on-disk settings must call `await settingsManager.flush()`.
+- `AuthStorage` constructor is no longer public. Use static factories (`AuthStorage.create(...)`, `AuthStorage.fromStorage(...)`, `AuthStorage.inMemory(...)`). This breaks code that used `new AuthStorage(...)` directly.
+
+### Added
+
+- Added `SettingsManager.drainErrors()` for caller-controlled settings I/O error handling without manager-side console output.
+- Added auth storage backends (`FileAuthStorageBackend`, `InMemoryAuthStorageBackend`) and `AuthStorage.fromStorage(...)` for storage-first auth persistence wiring.
+- Added Anthropic `claude-sonnet-4-6` model fallback entry to generated model definitions.
+
+### Changed
+
+- `SettingsManager` now uses scoped storage abstraction with per-scope locked read/merge/write persistence for global and project settings.
+
+### Fixed
+
+- Fixed project settings persistence to preserve unrelated external edits via merge-on-write, while still applying in-memory changes for modified keys.
+- Fixed auth credential persistence to preserve unrelated external edits to `auth.json` via locked read/merge/write updates.
+- Fixed auth load/persist error surfacing by buffering errors and exposing them via `AuthStorage.drainErrors()`.
+
 ## [0.52.12] - 2026-02-13
 
 ### Added
