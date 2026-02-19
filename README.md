@@ -58,3 +58,119 @@ npm run check        # Lint, format, and type check
 ## License
 
 MIT
+
+---
+
+## Pi-Mom Discord 生产环境配置
+
+### 环境变量
+
+创建 `~/.pi/mom/discord-prod/env.sh`：
+
+```bash
+export MOM_DISCORD_TOKEN='your-discord-bot-token'
+export MINIMAX_CN_API_KEY='your-minimax-api-key'
+```
+
+### Docker 容器
+
+```bash
+docker rm -f mom-sandbox-discord-prod || true
+docker run -d \
+  --name mom-sandbox-discord-prod \
+  --restart unless-stopped \
+  -v ~/.pi/mom/discord-prod:/workspace \
+  alpine:latest \
+  tail -f /dev/null
+```
+
+### 启动服务 (launchd)
+
+配置文件：`~/Library/LaunchAgents/com.pi.mom.discord.plist`
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.pi.mom.discord</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/mom</string>
+        <string>--sandbox=docker:mom-sandbox-discord-prod</string>
+        <string>/Users/nantas-agent/.pi/mom/discord-prod/data</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/opt/homebrew/opt/node@24/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>MOM_DISCORD_TOKEN</key>
+        <string>your-discord-bot-token</string>
+        <key>MINIMAX_CN_API_KEY</key>
+        <string>your-minimax-api-key</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/mom-prod.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/mom-prod.log</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/nantas-agent/.pi/mom/discord-prod/data</string>
+</dict>
+</plist>
+```
+
+加载服务：
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.pi.mom.discord.plist
+```
+
+### 服务管理命令
+
+| 操作 | 命令 |
+|------|------|
+| 查看状态 | `launchctl list \| grep pi.mom` |
+| 停止服务 | `launchctl unload ~/Library/LaunchAgents/com.pi.mom.discord.plist` |
+| 启动服务 | `launchctl load ~/Library/LaunchAgents/com.pi.mom.discord.plist` |
+| 重启服务 | 先 unload 再 load |
+| 查看日志 | `tail -f /tmp/mom-prod.log` |
+
+### 目录结构
+
+```
+~/.pi/mom/discord-prod/
+├── env.sh              # 环境变量
+├── data/               # 挂载到容器 /workspace
+│   ├── settings.json   # 全局设置
+│   ├── MEMORY.md       # 全局记忆
+│   ├── events/         # 定时任务
+│   ├── skills/         # 全局 skills
+│   └── <channel-id>/   # 每个频道的独立数据
+│       ├── MEMORY.md
+│       ├── log.jsonl
+│       ├── context.jsonl
+│       ├── attachments/
+│       ├── scratch/
+│       └── skills/
+```
+
+### 挂载项目目录
+
+如需让 mom 访问项目文件，在创建容器时添加挂载：
+
+```bash
+docker run -d \
+  --name mom-sandbox-discord-prod \
+  --restart unless-stopped \
+  -v ~/.pi/mom/discord-prod:/workspace \
+  -v ~/projects:/projects \
+  alpine:latest \
+  tail -f /dev/null
+```
+
+然后告诉 mom：`我的项目在 /projects/xxx`
