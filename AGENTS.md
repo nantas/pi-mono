@@ -99,7 +99,29 @@ tmux send-keys -t pi-test "prompt" Enter
 tmux kill-session -t pi-test
 ```
 
+
 ## Style
 - Keep answers concise
 - No emojis in commits, issues, code
 - Technical prose only, be kind but direct
+
+## 上游同步工作流 (Upstream Sync Workflow)
+
+本仓库基于官方 pi-mono (badlogic/pi-mono) 进行定制开发，遵循以下同步规范：
+
+### 分支策略
+- `main`: 只读分支，追踪 upstream/main 官方代码
+- `nantas-dev`: 定制开发主分支，所有修改提交到此分支
+
+### 同步流程（收到 'fetch upstream' 指令时执行）
+
+1. **预检**: 切换到 main，执行 `git fetch upstream && git merge upstream/main`，再切回 nantas-dev 进行 dry-run 分析
+2. **无冲突**: 直接合并，然后分析变更内容。如有接口/结构变化，必须更新本 AGENTS.md
+3. **有冲突**: 暂停合并，用自然语言向 User 描述不同解决选项的影响，等待决策后执行
+4. **回归测试**: 合并后运行构建和测试确保定制逻辑正常
+
+### Remote 配置
+```
+origin   = git@github.com:nantas/pi-mono.git (fork)
+upstream = https://github.com/badlogic/pi-mono.git (官方)
+```
