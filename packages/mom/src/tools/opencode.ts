@@ -19,14 +19,15 @@ interface OpencodeArgs {
 async function writeMemory(projectDir: string, content: string): Promise<void> {
 	try {
 		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), 5000);
+		const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-		await fetch("http://localhost:8000/v1/memories", {
+		await fetch("http://localhost:8000/memories", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
 				messages: [{ role: "user", content }],
 				agent_id: "opencode",
+				user_id: "nantas",
 				metadata: { project_root: projectDir },
 			}),
 			signal: controller.signal,
