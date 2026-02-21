@@ -19,9 +19,9 @@ interface OpencodeArgs {
 async function writeMemory(projectDir: string, content: string): Promise<void> {
 	try {
 		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), 30000);
+		const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-		await fetch("http://localhost:8000/memories", {
+		const response = await fetch("http://localhost:8000/memories", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
@@ -29,12 +29,43 @@ async function writeMemory(projectDir: string, content: string): Promise<void> {
 				agent_id: "opencode",
 				user_id: "nantas",
 				metadata: { project_root: projectDir },
+				async_processing: true,
 			}),
 			signal: controller.signal,
 		});
 		clearTimeout(timeoutId);
+
+		const data = (await response.json()) as { task_id?: string };
+		if (data.task_id) {
+			pollTaskStatus(data.task_id);
+		}
 	} catch {
 		// Non-blocking, ignore errors
+	}
+}
+
+async function pollTaskStatus(taskId: string): Promise<void> {
+	const maxAttempts = 10;
+	const interval = 2000;
+
+	for (let i = 0; i < maxAttempts; i++) {
+		await new Promise((resolve) => setTimeout(resolve, interval));
+		try {
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+			const response = await fetch(`http://localhost:8000/memories/tasks/${taskId}`, {
+				signal: controller.signal,
+			});
+			clearTimeout(timeoutId);
+
+			const data = (await response.json()) as { status?: string };
+			if (data.status === "completed" || data.status === "failed") {
+				return;
+			}
+		} catch {
+			return;
+		}
 	}
 }
 
