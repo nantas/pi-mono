@@ -1,5 +1,7 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
+import { writeFile } from "fs/promises";
+import { join } from "path";
 import type { Executor } from "../sandbox.js";
 
 const opencodeSchema = Type.Object({
@@ -8,12 +10,51 @@ const opencodeSchema = Type.Object({
 	architectural_decisions: Type.Optional(
 		Type.String({ description: "Project-level architectural decisions or context preferences to pass to sub-agent" }),
 	),
+	notifyOnComplete: Type.Optional(
+		Type.Boolean({ description: "Whether to send a notification when the task completes" }),
+	),
+	resultSummary: Type.Optional(
+		Type.String({ description: "Summary of the task result to include in the notification" }),
+	),
+	channelId: Type.Optional(Type.String({ description: "Channel ID to send the notification to" })),
+	workspaceDir: Type.Optional(Type.String({ description: "Workspace directory for storing event files" })),
 });
 
 interface OpencodeArgs {
 	project_dir: string;
 	prompt: string;
 	architectural_decisions?: string;
+	notifyOnComplete?: boolean;
+	resultSummary?: string;
+	channelId?: string;
+	workspaceDir?: string;
+}
+
+interface ImmediateEventPayload {
+	type: "immediate";
+	channelId: string;
+	text: string;
+}
+
+function truncateText(text: string, maxLength: number): string {
+	if (text.length <= maxLength) return text;
+	return `${text.substring(0, maxLength - 3)}...`;
+}
+
+async function createImmediateEvent(channelId: string, text: string, workspaceDir: string): Promise<void> {
+	const timestamp = Date.now();
+	const filename = `opencode-${timestamp}.json`;
+	const eventsDir = join(workspaceDir, "events");
+
+	const payload: ImmediateEventPayload = {
+		type: "immediate",
+		channelId,
+		text,
+	};
+
+	const { mkdir } = await import("fs/promises");
+	await mkdir(eventsDir, { recursive: true });
+	await writeFile(join(eventsDir, filename), JSON.stringify(payload, null, 3));
 }
 
 async function writeMemory(projectDir: string, content: string): Promise<void> {
@@ -101,7 +142,20 @@ export function createOpenCodeTool(executor: Executor): AgentTool<typeof opencod
 			}
 
 			if (result.code !== 0) {
+				if (args.notifyOnComplete && args.channelId && args.workspaceDir) {
+					const errorText = args.resultSummary
+						? `${args.resultSummary}\n\nError: ${truncateText(output, 500)}`
+						: `Task failed: ${truncateText(output, 500)}`;
+					await createImmediateEvent(args.channelId, errorText, args.workspaceDir).catch(() => {});
+				}
 				throw new Error(`${output}\n\nCommand exited with code ${result.code}`.trim());
+			}
+
+			if (args.notifyOnComplete && args.channelId && args.workspaceDir) {
+				const successText = args.resultSummary
+					? `${args.resultSummary}\n\nResult: ${truncateText(output, 500)}`
+					: `Task completed: ${truncateText(output, 500)}`;
+				await createImmediateEvent(args.channelId, successText, args.workspaceDir).catch(() => {});
 			}
 
 			return { content: [{ type: "text", text: output || "(completed)" }], details: undefined };
