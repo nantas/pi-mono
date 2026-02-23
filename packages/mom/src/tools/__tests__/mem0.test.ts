@@ -62,13 +62,26 @@ describe("mem0 tool", () => {
 		const result = await tool.execute("call-id", {
 			action: "read",
 			query: "memory",
+			project_dir: "/tmp/project",
 		});
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		expect(fetchMock).toHaveBeenCalledWith(
-			"http://localhost:7889/search?text=memory&agent_id=pi-mom-user&limit=5",
-			expect.any(Object),
+			"http://localhost:7889/search",
+			expect.objectContaining({
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+			}),
 		);
+
+		const fetchOptions = fetchMock.mock.calls[0]?.[1];
+		const requestBody = JSON.parse((fetchOptions as RequestInit).body as string);
+		expect(requestBody).toEqual({
+			query: "memory",
+			user_id: "nantas",
+			agent_id: "pi-mom-user",
+			filters: { project_root: "/tmp/project" },
+		});
 		expect(extractText(result)).toBe("找到 2 条相关记忆:\n1. first memory\n2. second memory");
 	});
 

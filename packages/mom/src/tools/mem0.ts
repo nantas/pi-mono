@@ -144,17 +144,19 @@ export function createMem0Tool(): AgentTool<typeof mem0Schema> {
 				return createTextResult("query is required for read/search action");
 			}
 
-			const url = new URL(`${MEM0_URL}/search`);
-			url.searchParams.set("text", args.query);
-			url.searchParams.set("agent_id", agentId);
-			url.searchParams.set("limit", "5");
-
 			const controller = new AbortController();
 			const timeoutId = setTimeout(() => controller.abort(), 5000);
 
 			try {
-				const response = await fetch(url.toString(), {
-					method: "GET",
+				const response = await fetch(`${MEM0_URL}/search`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						query: args.query,
+						user_id: "nantas",
+						agent_id: agentId,
+						filters: args.project_dir ? { project_root: args.project_dir } : undefined,
+					}),
 					signal: controller.signal,
 				});
 
