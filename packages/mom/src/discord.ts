@@ -19,6 +19,15 @@ import type { Attachment, BotAdapter, BotChannelInfo, BotEvent, BotHandler, BotU
 
 type QueuedWork = () => Promise<void>;
 
+const DISCORD_MAX_LENGTH = 4000;
+const TRUNCATION_SUFFIX = '\n\n...(内容过长已截断，如需查看完整输出请回复"是"或"继续")';
+
+function truncateForDiscord(text: string): string {
+	if (text.length <= DISCORD_MAX_LENGTH) return text;
+	const safeLength = DISCORD_MAX_LENGTH - TRUNCATION_SUFFIX.length;
+	return text.slice(0, safeLength) + TRUNCATION_SUFFIX;
+}
+
 class ChannelQueue {
 	private queue: QueuedWork[] = [];
 	private processing = false;
@@ -131,7 +140,7 @@ export class DiscordBot implements BotAdapter {
 		if (!discordChannel) {
 			throw new Error(`Channel not found: ${channel}`);
 		}
-		const message = await discordChannel.send(text);
+		const message = await discordChannel.send(truncateForDiscord(text));
 		return message.id;
 	}
 
@@ -141,7 +150,7 @@ export class DiscordBot implements BotAdapter {
 
 		try {
 			const message = await discordChannel.messages.fetch(ts);
-			await message.edit(text);
+			await message.edit(truncateForDiscord(text));
 		} catch {
 			// Message may not exist, post new one
 			await this.postMessage(channel, text);

@@ -178,6 +178,17 @@ function buildSystemPrompt(
 Bold: *text*, Italic: _text_, Code: \`code\`, Block: \`\`\`code\`\`\`, Links: <url|text>
 Do NOT use **double asterisks** or [markdown](links).
 
+## Discord 消息分段发送
+
+当你的响应被截断（末尾显示"...内容过长已截断..."）且用户请求查看完整输出时：
+
+1. 从你的上一条完整回复中提取完整内容
+2. 将内容分割为多条消息，每条不超过 2000 字符
+3. 按顺序发送，每条消息末尾标注 "(1/3)"、"(2/3)" 等
+4. 在最后一条消息末尾标注 "(发送完成)"
+
+**注意**：分段发送时保持代码块的完整性，不要在代码块中间截断。
+
 ## Slack IDs
 Channels: ${channelMappings}
 
