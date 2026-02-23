@@ -4,6 +4,8 @@ import { writeFile } from "fs/promises";
 import { join } from "path";
 import type { Executor } from "../sandbox.js";
 
+const MEM0_URL: string = process.env.MEM0_URL || "http://localhost:7889";
+
 const opencodeSchema = Type.Object({
 	project_dir: Type.String({ description: "Target project absolute path" }),
 	prompt: Type.String({ description: "Specific code task description" }),
@@ -62,7 +64,7 @@ async function writeMemory(projectDir: string, content: string): Promise<void> {
 		const controller = new AbortController();
 		const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-		const response = await fetch("http://localhost:8000/memories", {
+		const response = await fetch(`${MEM0_URL}/memories`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
@@ -95,7 +97,7 @@ async function pollTaskStatus(taskId: string): Promise<void> {
 			const controller = new AbortController();
 			const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-			const response = await fetch(`http://localhost:8000/memories/tasks/${taskId}`, {
+			const response = await fetch(`${MEM0_URL}/memories/tasks/${taskId}`, {
 				signal: controller.signal,
 			});
 			clearTimeout(timeoutId);
