@@ -110,6 +110,7 @@ class HostExecutor implements Executor {
 			const child = spawn(shell, [...shellArgs, command], {
 				detached: true,
 				stdio: ["ignore", "pipe", "pipe"],
+				env: { ...process.env },
 			});
 
 			let stdout = "";
