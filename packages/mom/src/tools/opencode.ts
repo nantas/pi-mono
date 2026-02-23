@@ -1,6 +1,6 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
-import { writeFile } from "fs/promises";
+import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import type { Executor } from "../sandbox.js";
 
@@ -38,9 +38,47 @@ interface ImmediateEventPayload {
 	text: string;
 }
 
+interface OpencodeToolDetails {
+	logPath: string;
+	fullOutputLength: number;
+}
+
 function truncateText(text: string, maxLength: number): string {
 	if (text.length <= maxLength) return text;
 	return `${text.substring(0, maxLength - 3)}...`;
+}
+
+function truncateTextFromEnd(text: string, maxLength: number): string {
+	if (text.length <= maxLength) return text;
+	return text.slice(-maxLength);
+}
+
+function extractSummary(output: string): string | null {
+	const match = output.match(/<summary>([\s\S]*?)<\/summary>/i);
+	if (!match) return null;
+
+	const summary = match[1].trim();
+	return summary.length > 0 ? summary : null;
+}
+
+async function writeExecutionLog(
+	projectDir: string,
+	output: string,
+): Promise<{ logPath: string; writeError?: string }> {
+	const timestamp = Date.now();
+	const filename = `opencode-${timestamp}.log`;
+	const logsDir = join(projectDir, ".mem0", "logs");
+	const absoluteLogPath = join(logsDir, filename);
+	const relativeLogPath = `.mem0/logs/${filename}`;
+
+	try {
+		await mkdir(logsDir, { recursive: true });
+		await writeFile(absoluteLogPath, output);
+		return { logPath: relativeLogPath };
+	} catch (error) {
+		const writeError = error instanceof Error ? error.message : String(error);
+		return { logPath: relativeLogPath, writeError };
+	}
 }
 
 async function createImmediateEvent(channelId: string, text: string, workspaceDir: string): Promise<void> {
@@ -54,7 +92,6 @@ async function createImmediateEvent(channelId: string, text: string, workspaceDi
 		text,
 	};
 
-	const { mkdir } = await import("fs/promises");
 	await mkdir(eventsDir, { recursive: true });
 	await writeFile(join(eventsDir, filename), JSON.stringify(payload, null, 3));
 }
@@ -129,7 +166,9 @@ export function createOpenCodeTool(executor: Executor): AgentTool<typeof opencod
 			}
 
 			const wrappedPrompt =
-				"【强制指令】请先使用 Skill 工具加载 mem0-project-memory 技能获取关于该项目的记忆和架构决策。请务必遵循。===== 实际任务 =====\n" +
+				"【强制指令】请先使用 Skill 工具加载 mem0-project-memory 技能获取关于该项目的记忆和架构决策。请务必遵循。\n" +
+				"【总结指令】在完成所有编码和执行任务后，请务必在你的最终回复中使用 <summary>...</summary> 标签包裹一段简短的执行总结（包括关键修改、文件变更和后续建议）。\n" +
+				"===== 实际任务 =====\n" +
 				args.prompt;
 
 			const command = `opencode run --dir "${args.project_dir}" --agent cli "${escapePrompt(wrappedPrompt)}"`;
@@ -143,24 +182,46 @@ export function createOpenCodeTool(executor: Executor): AgentTool<typeof opencod
 				output += result.stderr;
 			}
 
+			const { logPath, writeError } = await writeExecutionLog(args.project_dir, output);
+			const truncatedOutput = truncateTextFromEnd(output || "(no output)", 500);
+			if (writeError) {
+				console.warn(`Warning: failed to write opencode log to ${logPath}: ${writeError}`);
+			}
+
 			if (result.code !== 0) {
 				if (args.notifyOnComplete && args.channelId && args.workspaceDir) {
 					const errorText = args.resultSummary
-						? `${args.resultSummary}\n\nError: ${truncateText(output, 500)}`
-						: `Task failed: ${truncateText(output, 500)}`;
+						? `${args.resultSummary}\n\nError: ${truncatedOutput}`
+						: `Task failed: ${truncatedOutput}`;
 					await createImmediateEvent(args.channelId, errorText, args.workspaceDir).catch(() => {});
 				}
-				throw new Error(`${output}\n\nCommand exited with code ${result.code}`.trim());
+
+				let errorMessage = `${truncatedOutput}\n\nCommand exited with code ${result.code}\nLog: ${logPath}`;
+				if (writeError) {
+					errorMessage += `\nLog write warning: ${truncateText(writeError, 200)}`;
+				}
+				throw new Error(errorMessage.trim());
 			}
 
 			if (args.notifyOnComplete && args.channelId && args.workspaceDir) {
 				const successText = args.resultSummary
-					? `${args.resultSummary}\n\nResult: ${truncateText(output, 500)}`
-					: `Task completed: ${truncateText(output, 500)}`;
-				await createImmediateEvent(args.channelId, successText, args.workspaceDir).catch(() => {});
+					? `${args.resultSummary}\n\nResult: ${truncatedOutput}`
+					: `Task completed: ${truncatedOutput}`;
+				const successMessage = writeError
+					? `${successText}\n\nLog write warning: ${truncateText(writeError, 200)}`
+					: successText;
+
+				await createImmediateEvent(args.channelId, successMessage, args.workspaceDir).catch(() => {});
 			}
 
-			return { content: [{ type: "text", text: output || "(completed)" }], details: undefined };
+			const summary = extractSummary(output) ?? truncatedOutput;
+			const summaryText = summary || "(completed)";
+			const details: OpencodeToolDetails = {
+				logPath,
+				fullOutputLength: output.length,
+			};
+
+			return { content: [{ type: "text", text: summaryText }], details };
 		},
 	};
 }
