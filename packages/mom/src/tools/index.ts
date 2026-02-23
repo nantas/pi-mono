@@ -3,6 +3,7 @@ import type { Executor } from "../sandbox.js";
 import { attachTool } from "./attach.js";
 import { createBashTool } from "./bash.js";
 import { createEditTool } from "./edit.js";
+import { createMem0Tool } from "./mem0.js";
 import { createOpenCodeTool } from "./opencode.js";
 import { createReadTool } from "./read.js";
 import { createWriteTool } from "./write.js";
@@ -15,6 +16,7 @@ export function createMomTools(executor: Executor): AgentTool<any>[] {
 		createBashTool(executor),
 		createEditTool(executor),
 		createWriteTool(executor),
+		createMem0Tool(),
 		createOpenCodeTool(executor),
 		attachTool,
 	];

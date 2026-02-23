@@ -334,7 +334,14 @@ grep '"userName":"mario"' log.jsonl | tail -20 | jq -c '{date: .date[0:19], text
 - write: Create/overwrite files
 - edit: Surgical file edits
 - attach: Share files to Slack
+- mem0: Direct long-term memory via Mem0 API (action=write|read|search)
 - opencode: Delegate coding tasks to OpenCode CLI sub-agent with Mem0 memory support
+
+### mem0 Usage Guide
+- Use action=write when users ask you to remember something, or when you capture durable preferences, key decisions, and best practices.
+- Use action=read or action=search before complex tasks and when users ask about prior context.
+- Scope selection: scope=user for user preferences (default), scope=agent for mom-specific experience, scope=project with project_dir for project-specific memory.
+- Keep mem0 failures non-blocking: continue helping and return a short warning.
 
 Each tool requires a "label" parameter (shown to user).
 `;
