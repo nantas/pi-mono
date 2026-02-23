@@ -528,6 +528,15 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 
 			log.logToolStart(logCtx, agentEvent.toolName, label, agentEvent.args as Record<string, unknown>);
 			queue.enqueue(() => ctx.respond(`_→ ${label}_`, false), "tool label");
+
+			if (agentEvent.toolName === "opencode") {
+				const opencodeArgs = agentEvent.args as { project_dir?: string };
+				const projectName = opencodeArgs.project_dir?.split("/").pop() || "project";
+				queue.enqueue(
+					() => ctx.respond(`_⏳ Executing opencode on **${projectName}**... (this may take a while)_`, false),
+					"opencode status",
+				);
+			}
 		} else if (event.type === "tool_execution_end") {
 			const agentEvent = event as AgentEvent & { type: "tool_execution_end" };
 			const resultStr = extractToolResultText(agentEvent.result);
