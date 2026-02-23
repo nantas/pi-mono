@@ -7780,13 +7780,13 @@ export const MODELS = {
 			reasoning: true,
 			input: ["text", "image"],
 			cost: {
-				input: 0.22999999999999998,
-				output: 3,
-				cacheRead: 0,
+				input: 0.44999999999999996,
+				output: 2.2,
+				cacheRead: 0.22499999999999998,
 				cacheWrite: 0,
 			},
 			contextWindow: 262144,
-			maxTokens: 262144,
+			maxTokens: 65535,
 		} satisfies Model<"openai-completions">,
 		"nex-agi/deepseek-v3.1-nex-n1": {
 			id: "nex-agi/deepseek-v3.1-nex-n1",
@@ -9990,7 +9990,7 @@ export const MODELS = {
 			reasoning: true,
 			input: ["text"],
 			cost: {
-				input: 0.3,
+				input: 0.95,
 				output: 2.5500000000000003,
 				cacheRead: 0,
 				cacheWrite: 0,
@@ -10304,7 +10304,7 @@ export const MODELS = {
 				cacheWrite: 3.75,
 			},
 			contextWindow: 200000,
-			maxTokens: 64000,
+			maxTokens: 8192,
 		} satisfies Model<"anthropic-messages">,
 		"anthropic/claude-haiku-4.5": {
 			id: "anthropic/claude-haiku-4.5",
