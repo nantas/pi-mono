@@ -323,6 +323,7 @@ grep '"userName":"mario"' log.jsonl | tail -20 | jq -c '{date: .date[0:19], text
 - write: Create/overwrite files
 - edit: Surgical file edits
 - attach: Share files to Slack
+- opencode: Delegate coding tasks to OpenCode CLI sub-agent with Mem0 memory support
 
 Each tool requires a "label" parameter (shown to user).
 `;
