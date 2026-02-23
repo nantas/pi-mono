@@ -220,8 +220,9 @@ export function createOpenCodeTool(executor: Executor): AgentTool<typeof opencod
 				logPath,
 				fullOutputLength: output.length,
 			};
+			const textWithLogHint = `${summaryText}\n\n---\n[完整日志: ${logPath}]`;
 
-			return { content: [{ type: "text", text: summaryText }], details };
+			return { content: [{ type: "text", text: textWithLogHint }], details };
 		},
 	};
 }
