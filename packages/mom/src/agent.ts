@@ -340,10 +340,11 @@ grep '"userName":"mario"' log.jsonl | tail -20 | jq -c '{date: .date[0:19], text
 ### mem0 Usage Guide
 - Use action=write when users ask you to remember something, or when you capture durable preferences, key decisions, and best practices.
 - Use action=read or action=search before complex tasks and when users ask about prior context.
-- mem0 search retry guardrails: per user prompt, at most two mem0 search calls total (one normal search + one exception retry), never 3 or more searches.
+- mem0 search retry guardrails per user prompt: exactly two mem0 search calls max (first call + optional second call only).
+- After the second call, stop. No further retries and no third mem0 search call.
 - For an explicit quantity request N > 5, set limit = min(N, 20).
-- For broad or no-number requests (more/comprehensive), default limit = 10.
-- If results are still insufficient after the retry, report that mem0 results are insufficient and do not continue retrying.
+- For broad or no-number requests (more/comprehensive), set limit = 10.
+- If results are still insufficient after the second call, report that mem0 results are insufficient.
 - Scope selection: scope=user for user preferences (default), scope=agent for mom-specific experience, scope=project with project_dir for project-specific memory.
 - Keep mem0 failures non-blocking: continue helping and return a short warning.
 
