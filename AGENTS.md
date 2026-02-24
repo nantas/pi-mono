@@ -100,6 +100,27 @@ tmux kill-session -t pi-test
 ```
 
 
+## Mem0 Production Deployment
+
+### Deploying Code Changes
+1. **Stop & Clean**:
+   ```bash
+   docker compose -f server/docker-compose.prod.yaml down
+   docker rmi mem0-prod-mem0:latest || true
+   ```
+
+2. **Rebuild & Start**:
+   ```bash
+   docker compose -f server/docker-compose.prod.yaml up -d --build --force-recreate
+   ```
+
+3. **Verify**:
+   ```bash
+   docker exec mem0-prod-mem0-1 grep "<expected_change>" /app/main.py
+   ```
+
+**IMPORTANT**: The production environment does NOT mount local source code. You MUST rebuild the image for changes to take effect.
+
 ## Style
 - Keep answers concise
 - No emojis in commits, issues, code
