@@ -32,14 +32,14 @@ function createTextResult(text: string): { content: Array<{ type: "text"; text: 
 	return { content: [{ type: "text", text }], details: undefined };
 }
 
-function resolveAgentId(scope: Mem0Scope | undefined): string {
+function resolveAgentId(scope: Mem0Scope | undefined): string | undefined {
 	switch (scope ?? "user") {
 		case "agent":
 			return "pi-mom";
 		case "project":
 			return "pi-mom-project";
 		default:
-			return "pi-mom-user";
+			return undefined;
 	}
 }
 
@@ -100,21 +100,24 @@ export function createMem0Tool(): AgentTool<typeof mem0Schema> {
 				}
 
 				const controller = new AbortController();
-				const timeoutId = setTimeout(() => controller.abort(), 5000);
+				const timeoutId = setTimeout(() => controller.abort(), 15000);
 
 				try {
 					const payload: {
 						messages: Array<{ role: "user"; content: string }>;
-						agent_id: string;
 						user_id: string;
+						agent_id?: string;
 						metadata?: { project_root: string };
 						async_processing: boolean;
 					} = {
 						messages: [{ role: "user", content: args.content }],
-						agent_id: agentId,
 						user_id: "nantas",
 						async_processing: true,
 					};
+
+					if (agentId) {
+						payload.agent_id = agentId;
+					}
 
 					if (args.project_dir) {
 						payload.metadata = { project_root: args.project_dir };
@@ -145,18 +148,31 @@ export function createMem0Tool(): AgentTool<typeof mem0Schema> {
 			}
 
 			const controller = new AbortController();
-			const timeoutId = setTimeout(() => controller.abort(), 5000);
+			const timeoutId = setTimeout(() => controller.abort(), 15000);
 
 			try {
+				const searchPayload: {
+					query: string;
+					user_id: string;
+					agent_id?: string;
+					filters?: { project_root: string };
+				} = {
+					query: args.query,
+					user_id: "nantas",
+				};
+
+				if (agentId) {
+					searchPayload.agent_id = agentId;
+				}
+
+				if (args.project_dir) {
+					searchPayload.filters = { project_root: args.project_dir };
+				}
+
 				const response = await fetch(`${MEM0_URL}/search`, {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						query: args.query,
-						user_id: "nantas",
-						agent_id: agentId,
-						filters: args.project_dir ? { project_root: args.project_dir } : undefined,
-					}),
+					body: JSON.stringify(searchPayload),
 					signal: controller.signal,
 				});
 

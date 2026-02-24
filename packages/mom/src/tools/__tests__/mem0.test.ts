@@ -46,7 +46,43 @@ describe("mem0 tool", () => {
 				headers: { "Content-Type": "application/json" },
 			}),
 		);
+
+		const fetchOptions = fetchMock.mock.calls[0]?.[1];
+		const requestBody = JSON.parse((fetchOptions as RequestInit).body as string);
+		expect(requestBody).toEqual({
+			messages: [{ role: "user", content: "remember this" }],
+			agent_id: "pi-mom",
+			user_id: "nantas",
+			metadata: { project_root: "/tmp/project" },
+			async_processing: true,
+		});
 		expect(extractText(result)).toBe("已写入记忆。");
+	});
+
+	it("does not include agent_id for user scope write", async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const tool = createMem0Tool();
+		await tool.execute("call-id", {
+			action: "write",
+			content: "remember user memory",
+		});
+
+		const fetchOptions = fetchMock.mock.calls[0]?.[1];
+		const requestBody = JSON.parse((fetchOptions as RequestInit).body as string) as {
+			agent_id?: string;
+			messages: Array<{ role: string; content: string }>;
+			user_id: string;
+			async_processing: boolean;
+		};
+
+		expect(requestBody.agent_id).toBeUndefined();
+		expect(requestBody.messages).toEqual([{ role: "user", content: "remember user memory" }]);
+		expect(requestBody.user_id).toBe("nantas");
+		expect(requestBody.async_processing).toBe(true);
 	});
 
 	it("returns memories for read action", async () => {
@@ -79,7 +115,6 @@ describe("mem0 tool", () => {
 		expect(requestBody).toEqual({
 			query: "memory",
 			user_id: "nantas",
-			agent_id: "pi-mom-user",
 			filters: { project_root: "/tmp/project" },
 		});
 		expect(extractText(result)).toBe("找到 2 条相关记忆:\n1. first memory\n2. second memory");
