@@ -151,6 +151,45 @@ describe("mem0 tool", () => {
 		expect(requestBody.limit).toBe(2);
 	});
 
+	it("retries read/search once when first request aborts then succeeds", async () => {
+		const abortError = Object.assign(new Error("The operation was aborted."), { name: "AbortError" });
+		const fetchMock = vi
+			.fn()
+			.mockRejectedValueOnce(abortError)
+			.mockResolvedValueOnce({
+				ok: true,
+				json: vi.fn().mockResolvedValue({
+					memories: [{ memory: "retried memory" }],
+				}),
+			});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const tool = createMem0Tool();
+		const result = await tool.execute("call-id", {
+			action: "search",
+			query: "memory",
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(extractText(result)).toBe("找到 1 条相关记忆:\n1. retried memory");
+	});
+
+	it("returns failure text when both read/search attempts abort", async () => {
+		const firstAbortError = Object.assign(new Error("The operation was aborted."), { name: "AbortError" });
+		const secondAbortError = new Error("request aborted while waiting for response");
+		const fetchMock = vi.fn().mockRejectedValueOnce(firstAbortError).mockRejectedValueOnce(secondAbortError);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const tool = createMem0Tool();
+		const result = await tool.execute("call-id", {
+			action: "search",
+			query: "memory",
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(extractText(result)).toBe("读取记忆失败: request aborted while waiting for response");
+	});
+
 	it("returns friendly message when query is missing", async () => {
 		const tool = createMem0Tool();
 		const result = await tool.execute("call-id", {

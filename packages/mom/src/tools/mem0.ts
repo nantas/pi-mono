@@ -54,6 +54,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }
 
+function isAbortError(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+
+	if (error.name === "AbortError") {
+		return true;
+	}
+
+	return error.message.toLowerCase().includes("aborted");
+}
+
 function extractMemoryText(entry: unknown): string | null {
 	if (typeof entry === "string") {
 		return entry;
@@ -154,56 +166,64 @@ export function createMem0Tool(): AgentTool<typeof mem0Schema> {
 				return createTextResult("query is required for read/search action");
 			}
 
-			const controller = new AbortController();
-			const timeoutId = setTimeout(() => controller.abort(), 15000);
+			const searchPayload: {
+				query: string;
+				user_id: string;
+				limit: number;
+				agent_id?: string;
+				filters?: { project_root: string };
+			} = {
+				query: args.query,
+				user_id: "nantas",
+				limit: args.limit ?? 5,
+			};
 
-			try {
-				const searchPayload: {
-					query: string;
-					user_id: string;
-					limit: number;
-					agent_id?: string;
-					filters?: { project_root: string };
-				} = {
-					query: args.query,
-					user_id: "nantas",
-					limit: args.limit ?? 5,
-				};
-
-				if (agentId) {
-					searchPayload.agent_id = agentId;
-				}
-
-				if (args.project_dir) {
-					searchPayload.filters = { project_root: args.project_dir };
-				}
-
-				const response = await fetch(`${MEM0_URL}/search`, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(searchPayload),
-					signal: controller.signal,
-				});
-
-				if (!response.ok) {
-					return createTextResult(`读取记忆失败: HTTP ${response.status}`);
-				}
-
-				const data = (await response.json()) as unknown;
-				const memories = extractMemories(data);
-
-				if (memories.length === 0) {
-					return createTextResult("没有找到相关记忆。");
-				}
-
-				const memoryList = memories.map((memory, index) => `${index + 1}. ${memory}`).join("\n");
-				return createTextResult(`找到 ${memories.length} 条相关记忆:\n${memoryList}`);
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				return createTextResult(`读取记忆失败: ${message}`);
-			} finally {
-				clearTimeout(timeoutId);
+			if (agentId) {
+				searchPayload.agent_id = agentId;
 			}
+
+			if (args.project_dir) {
+				searchPayload.filters = { project_root: args.project_dir };
+			}
+
+			for (let attempt = 1; attempt <= 2; attempt++) {
+				const controller = new AbortController();
+				const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+				try {
+					const response = await fetch(`${MEM0_URL}/search`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify(searchPayload),
+						signal: controller.signal,
+					});
+
+					if (!response.ok) {
+						return createTextResult(`读取记忆失败: HTTP ${response.status}`);
+					}
+
+					const data = (await response.json()) as unknown;
+					const memories = extractMemories(data);
+
+					if (memories.length === 0) {
+						return createTextResult("没有找到相关记忆。");
+					}
+
+					const memoryList = memories.map((memory, index) => `${index + 1}. ${memory}`).join("\n");
+					return createTextResult(`找到 ${memories.length} 条相关记忆:\n${memoryList}`);
+				} catch (error) {
+					if (attempt < 2 && isAbortError(error)) {
+						continue;
+					}
+
+					const message = error instanceof Error ? error.message : String(error);
+					return createTextResult(`读取记忆失败: ${message}`);
+				} finally {
+					clearTimeout(timeoutId);
+				}
+			}
+
+			return createTextResult("读取记忆失败: aborted");
 		},
 	};
 }
