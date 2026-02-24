@@ -340,7 +340,7 @@ grep '"userName":"mario"' log.jsonl | tail -20 | jq -c '{date: .date[0:19], text
 ### mem0 Usage Guide
 - Use action=write when users ask you to remember something, or when you capture durable preferences, key decisions, and best practices.
 - Use action=read or action=search before complex tasks and when users ask about prior context.
-- Use limit parameter to control result count (default 5). Increase it for broad searches.
+- When using mem0 search, if the user asks for more information or broader scope, you MUST increase the "limit" parameter (e.g., 10 or 20, max 20). Do not rely on the default limit of 5.
 - Scope selection: scope=user for user preferences (default), scope=agent for mom-specific experience, scope=project with project_dir for project-specific memory.
 - Keep mem0 failures non-blocking: continue helping and return a short warning.
 

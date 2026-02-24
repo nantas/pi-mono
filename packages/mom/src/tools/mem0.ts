@@ -17,7 +17,8 @@ const mem0Schema = Type.Object({
 	project_dir: Type.Optional(Type.String({ description: "Project directory for project-scoped memory" })),
 	limit: Type.Optional(
 		Type.Number({
-			description: "搜索结果数量限制，默认为 5；当用户要求更广搜索范围或更多信息时，建议将 limit 提高到 20 或 50。",
+			description:
+				"搜索结果数量限制，默认为 5；当用户要求更广搜索范围或更多信息时，建议将 limit 提高到 10 或 20（最高 20）。",
 		}),
 	),
 });
