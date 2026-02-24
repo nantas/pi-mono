@@ -34,3 +34,4 @@ out.html
 packages/coding-agent/binaries/
 todo.md
 .obsidian
+.worktrees/
