@@ -115,9 +115,40 @@ describe("mem0 tool", () => {
 		expect(requestBody).toEqual({
 			query: "memory",
 			user_id: "nantas",
+			limit: 5,
 			filters: { project_root: "/tmp/project" },
 		});
 		expect(extractText(result)).toBe("找到 2 条相关记忆:\n1. first memory\n2. second memory");
+	});
+
+	it("passes custom limit for search action", async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: vi.fn().mockResolvedValue({
+				memories: [],
+			}),
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const tool = createMem0Tool();
+		await tool.execute("call-id", {
+			action: "search",
+			query: "memory",
+			limit: 2,
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+
+		const fetchOptions = fetchMock.mock.calls[0]?.[1];
+		const requestBody = JSON.parse((fetchOptions as RequestInit).body as string) as {
+			query: string;
+			user_id: string;
+			limit: number;
+		};
+
+		expect(requestBody.query).toBe("memory");
+		expect(requestBody.user_id).toBe("nantas");
+		expect(requestBody.limit).toBe(2);
 	});
 
 	it("returns friendly message when query is missing", async () => {

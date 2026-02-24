@@ -15,6 +15,7 @@ const mem0Schema = Type.Object({
 		}),
 	),
 	project_dir: Type.Optional(Type.String({ description: "Project directory for project-scoped memory" })),
+	limit: Type.Optional(Type.Number({ description: "搜索结果数量限制，默认为 5" })),
 });
 
 type Mem0Action = "write" | "read" | "search";
@@ -26,6 +27,7 @@ interface Mem0Args {
 	query?: string;
 	scope?: Mem0Scope;
 	project_dir?: string;
+	limit?: number;
 }
 
 function createTextResult(text: string): { content: Array<{ type: "text"; text: string }>; details: undefined } {
@@ -154,11 +156,13 @@ export function createMem0Tool(): AgentTool<typeof mem0Schema> {
 				const searchPayload: {
 					query: string;
 					user_id: string;
+					limit: number;
 					agent_id?: string;
 					filters?: { project_root: string };
 				} = {
 					query: args.query,
 					user_id: "nantas",
+					limit: args.limit ?? 5,
 				};
 
 				if (agentId) {
