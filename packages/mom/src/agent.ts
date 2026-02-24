@@ -138,7 +138,7 @@ function loadMomSkills(channelDir: string, workspacePath: string): Skill[] {
 	return Array.from(skillMap.values());
 }
 
-function buildSystemPrompt(
+export function buildSystemPrompt(
 	workspacePath: string,
 	channelId: string,
 	memory: string,
@@ -340,7 +340,10 @@ grep '"userName":"mario"' log.jsonl | tail -20 | jq -c '{date: .date[0:19], text
 ### mem0 Usage Guide
 - Use action=write when users ask you to remember something, or when you capture durable preferences, key decisions, and best practices.
 - Use action=read or action=search before complex tasks and when users ask about prior context.
-- When using mem0 search, if the user asks for more information or broader scope, you MUST increase the "limit" parameter (e.g., 10 or 20, max 20). Do not rely on the default limit of 5.
+- mem0 search retry guardrails: per user prompt, at most two mem0 search calls total (one normal search + one exception retry), never 3 or more searches.
+- For an explicit quantity request N > 5, set limit = min(N, 20).
+- For broad or no-number requests (more/comprehensive), default limit = 10.
+- If results are still insufficient after the retry, report that mem0 results are insufficient and do not continue retrying.
 - Scope selection: scope=user for user preferences (default), scope=agent for mom-specific experience, scope=project with project_dir for project-specific memory.
 - Keep mem0 failures non-blocking: continue helping and return a short warning.
 
