@@ -437,7 +437,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 	const workspacePath = executor.getWorkspacePath(channelDir.replace(`/${channelId}`, ""));
 
 	// Create tools
-	const tools = createMomTools(executor);
+	const tools = createMomTools(executor, workspacePath);
 
 	// Initial system prompt (will be updated each run with fresh memory/channels/users/skills)
 	const memory = getMemory(channelDir);

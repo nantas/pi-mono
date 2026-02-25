@@ -62,12 +62,12 @@ function extractSummary(output: string): string | null {
 }
 
 async function writeExecutionLog(
-	projectDir: string,
+	workspaceDir: string,
 	output: string,
 ): Promise<{ logPath: string; writeError?: string }> {
 	const timestamp = Date.now();
 	const filename = `opencode-${timestamp}.log`;
-	const logsDir = join(projectDir, ".mem0", "logs");
+	const logsDir = join(workspaceDir, ".mem0", "logs");
 	const absoluteLogPath = join(logsDir, filename);
 	const relativeLogPath = `.mem0/logs/${filename}`;
 
@@ -153,7 +153,7 @@ function escapePrompt(prompt: string): string {
 	return prompt.replace(/"/g, '\\"').replace(/\n/g, "\\n");
 }
 
-export function createOpenCodeTool(executor: Executor): AgentTool<typeof opencodeSchema> {
+export function createOpenCodeTool(executor: Executor, workspaceDir: string): AgentTool<typeof opencodeSchema> {
 	return {
 		name: "opencode",
 		label: "opencode",
@@ -182,7 +182,7 @@ export function createOpenCodeTool(executor: Executor): AgentTool<typeof opencod
 				output += result.stderr;
 			}
 
-			const { logPath, writeError } = await writeExecutionLog(args.project_dir, output);
+			const { logPath, writeError } = await writeExecutionLog(workspaceDir, output);
 			const truncatedOutput = truncateTextFromEnd(output || "(no output)", 500);
 			if (writeError) {
 				console.warn(`Warning: failed to write opencode log to ${logPath}: ${writeError}`);

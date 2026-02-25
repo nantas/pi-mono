@@ -10,14 +10,14 @@ import { createWriteTool } from "./write.js";
 
 export { setUploadFunction } from "./attach.js";
 
-export function createMomTools(executor: Executor): AgentTool<any>[] {
+export function createMomTools(executor: Executor, workspaceDir: string): AgentTool<any>[] {
 	return [
 		createReadTool(executor),
 		createBashTool(executor),
 		createEditTool(executor),
 		createWriteTool(executor),
 		createMem0Tool(),
-		createOpenCodeTool(executor),
+		createOpenCodeTool(executor, workspaceDir),
 		attachTool,
 	];
 }
