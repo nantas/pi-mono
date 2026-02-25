@@ -11,6 +11,63 @@ If the user did not give you a concrete task, read README.md, then ask which mod
 - `npm run dev` - Run dev mode for all packages
 - NEVER run: `npm run dev`, `npm run build`, `npm test` unless user instructs
 
+## Pi-mom Development Workflow
+
+Use these defaults unless a task explicitly says otherwise:
+
+```bash
+export MOM_REPO_DIR="/Users/nantas-agent/projects/agentic/pi-mono"
+export MOM_INSTANCE_DIR="$HOME/.pi/mom/discord-prod"
+export MOM_DATA_DIR="$MOM_INSTANCE_DIR/data"
+export MOM_LOG_DIR="$MOM_INSTANCE_DIR/logs"
+export MOM_LOG_FILE="$MOM_LOG_DIR/stdout.log"
+```
+
+1. **Build**
+   ```bash
+   # Option A: from repo root (build all packages)
+   npm run build
+
+   # Option B: only mom package
+   cd "$MOM_REPO_DIR/packages/mom" && npm run build
+   ```
+
+2. **Find process**
+   ```bash
+   pgrep -af "node .*packages/mom/dist/main.js"
+   # fallback:
+   ps aux | grep "node packages/mom/dist/main.js" | grep -v grep
+   ```
+
+3. **Stop process**
+   ```bash
+   kill <PID>
+   # or, only when the pattern is unique and safe:
+   pkill -f "node $MOM_REPO_DIR/packages/mom/dist/main.js --sandbox=host $MOM_DATA_DIR"
+   ```
+
+4. **Start process (robust background mode)**
+   ```bash
+   mkdir -p "$MOM_DATA_DIR" "$MOM_LOG_DIR"
+   test -f "$MOM_INSTANCE_DIR/env.sh" && source "$MOM_INSTANCE_DIR/env.sh"
+   nohup node "$MOM_REPO_DIR/packages/mom/dist/main.js" --sandbox=host "$MOM_DATA_DIR" >> "$MOM_LOG_FILE" 2>&1 &
+   echo "mom started pid=$! log=$MOM_LOG_FILE"
+   ```
+
+5. **Verify**
+   ```bash
+   pgrep -af "node .*packages/mom/dist/main.js"
+   tail -f "$MOM_LOG_FILE"
+   ```
+
+### One-liner Restart
+
+```bash
+MOM_REPO_DIR="/Users/nantas-agent/projects/agentic/pi-mono"; MOM_INSTANCE_DIR="$HOME/.pi/mom/discord-prod"; MOM_DATA_DIR="$MOM_INSTANCE_DIR/data"; MOM_LOG_DIR="$MOM_INSTANCE_DIR/logs"; MOM_LOG_FILE="$MOM_LOG_DIR/stdout.log"; mkdir -p "$MOM_DATA_DIR" "$MOM_LOG_DIR"; test -f "$MOM_INSTANCE_DIR/env.sh" && source "$MOM_INSTANCE_DIR/env.sh"; pkill -f "node $MOM_REPO_DIR/packages/mom/dist/main.js --sandbox=host $MOM_DATA_DIR" 2>/dev/null || true; nohup node "$MOM_REPO_DIR/packages/mom/dist/main.js" --sandbox=host "$MOM_DATA_DIR" >> "$MOM_LOG_FILE" 2>&1 & echo "mom started pid=$! log=$MOM_LOG_FILE"; pgrep -af "node .*packages/mom/dist/main.js"
+```
+
+If multiple mom instances may run on the same host, prefer `kill <PID>` over `pkill -f` to avoid stopping the wrong process.
+
 ## Code Style
 
 ### Formatting & Linting
