@@ -41,8 +41,24 @@ Monorepo managed with npm workspaces. Node >= 20 required.
 
 ### Build Order
 
-`npm run build` compiles in dependency order: `tui` → `ai` → `agent` → `coding-agent` → `web-ui`.
-`npm run check` requires build first because `web-ui` uses `tsc` which needs compiled `.d.ts` from dependencies.
+There is **no root-level `npm run build` script**. Build must be run at the package level in dependency order:
+
+```bash
+cd packages/tui    && npm run build
+cd packages/ai     && npm run build
+cd packages/agent  && npm run build
+cd packages/coding-agent && npm run build
+cd packages/web-ui && npm run build
+```
+
+`npm run check` requires build first because `web-ui` uses `tsc --noEmit` which reads compiled `.d.ts` from `node_modules/@earendil-works/*` (symlinked to `packages/*`), not from TypeScript source.
+
+### Build Workflow Pitfalls
+
+- **Stale `.d.ts` files**: If you change types in `packages/agent` or `packages/ai`, downstream packages (especially `web-ui`) will see stale `.d.ts` and throw type errors that don't exist in source. Always rebuild upstream packages before running `npm run check`.
+- **Missing workspace dependencies**: If `tsgo --noEmit` reports "Cannot find module 'typebox'" (or `uuid`, `extract-zip`, etc.), `node_modules` is out of sync. Run `npm install` from repo root.
+- **`npm run check` runs `web-ui` checks**: The root `check` script ends with `cd packages/web-ui && npm run check`, which includes `tsc --noEmit`. If `packages/agent/dist/` is stale, `web-ui` will fail even though you didn't touch it.
+- **Global CLI testing**: To test the built CLI globally, build `coding-agent` then run `cd packages/coding-agent && npm link --force`.
 
 ### Toolchain
 
@@ -283,6 +299,7 @@ Key test patterns:
 
 - After code changes (not documentation changes): `npm run check` (get full output, no tail). Fix all errors, warnings, and infos before committing.
 - Note: `npm run check` does not run tests.
+- If `npm run check` fails with type errors in `packages/web-ui` or "Cannot find module" errors, see **Build Workflow Pitfalls** above.
 - NEVER run: `npm run dev`, `npm run build`, `npm test`
 - Only run specific tests if user instructs: `npx tsx ../../node_modules/vitest/dist/cli.js --run test/specific.test.ts`
 - Run tests from the package root, not the repo root.
